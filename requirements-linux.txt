@@ -1,0 +1,15 @@
+# JSON Tree Viewer — Linux requirements
+#
+# RUNTIME: no pip packages are needed, but Tkinter comes from your distro:
+#   Debian / Ubuntu / Mint : sudo apt install python3 python3-tk
+#   Fedora / RHEL          : sudo dnf install python3 python3-tkinter
+#   Arch / Manjaro         : sudo pacman -S python tk
+#   openSUSE               : sudo zypper install python3 python3-tk
+#
+# BUILD-TIME ONLY (only for the optional standalone PyInstaller binary;
+# the plain .deb in SETUP.txt does NOT need this):
+#   python3 -m venv .venv
+#   source .venv/bin/activate
+#   pip install -r requirements-linux.txt
+
+pyinstaller>=6.0

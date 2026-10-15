@@ -1,0 +1,317 @@
+==============================================================================
+ JSON TREE VIEWER - SETUP AND PACKAGING GUIDE
+==============================================================================
+
+ 0. Run it without packaging
+ 1. LINUX   - build a .deb and install it as a system package
+ 2. LINUX   - (optional) standalone PyInstaller binary inside a .deb
+ 3. WINDOWS - build JsonTreeViewer.exe
+ 4. WINDOWS - build an installer so it installs like a normal Windows app
+ 5. Troubleshooting
+
+ Files expected in ONE folder:
+   main.py app.py tree_view.py tabs.py theme.py paths.py settings.py
+   requirements-windows.txt  requirements-linux.txt  README.md  SETUP.txt
+
+
+==============================================================================
+ 0. RUN WITHOUT PACKAGING
+==============================================================================
+ Needs Python 3.9+ with Tkinter. No pip packages are required.
+
+   Linux:    sudo apt install python3 python3-tk
+             python3 main.py [file.json ...]
+
+   Windows:  install Python from https://www.python.org/downloads/
+             (keep "tcl/tk and IDLE" ticked)
+             py -3 main.py [file.json ...]
+
+
+==============================================================================
+ 1. LINUX - BUILD A .DEB AND INSTALL IT AS A SYSTEM PACKAGE
+==============================================================================
+ Works on Debian, Ubuntu, Linux Mint, Pop!_OS, Zorin, etc.
+ The package is "Architecture: all" (pure Python). It depends on python3 and
+ python3-tk, which apt installs for you. No PyInstaller is needed.
+
+ 1.1  Prerequisites (on the build machine)
+ ------------------------------------------------------------------------------
+   sudo apt update
+   sudo apt install -y python3 python3-tk dpkg
+
+ 1.2  Save this script as build_deb.sh, next to the .py files
+ ------------------------------------------------------------------------------
+#!/usr/bin/env bash
+set -euo pipefail
+
+NAME=json-tree-viewer
+VERSION=1.0.0
+ARCH=all
+SRC="$(cd "$(dirname "$0")" && pwd)"
+PKG="$SRC/build/${NAME}_${VERSION}_${ARCH}"
+
+rm -rf "$SRC/build"
+mkdir -p "$PKG/DEBIAN" "$PKG/usr/bin" "$PKG/usr/lib/$NAME" \
+         "$PKG/usr/share/applications"
+
+# 1) program files
+install -m 644 "$SRC"/{main,app,tree_view,tabs,theme,paths,settings}.py \
+        "$PKG/usr/lib/$NAME/"
+
+# 2) command-line launcher: /usr/bin/json-tree-viewer
+cat > "$PKG/usr/bin/$NAME" <<'EOF'
+#!/bin/sh
+exec python3 /usr/lib/json-tree-viewer/main.py "$@"
+EOF
+chmod 755 "$PKG/usr/bin/$NAME"
+
+# 3) application-menu entry (also gives "Open With" for .json files)
+cat > "$PKG/usr/share/applications/$NAME.desktop" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=JSON Tree Viewer
+Comment=Explore JSON files as a collapsible tree
+Exec=json-tree-viewer %F
+Icon=application-json
+Terminal=false
+Categories=Development;Utility;
+MimeType=application/json;
+EOF
+
+# 4) package metadata
+cat > "$PKG/DEBIAN/control" <<EOF
+Package: $NAME
+Version: $VERSION
+Section: utils
+Priority: optional
+Architecture: $ARCH
+Depends: python3 (>= 3.9), python3-tk
+Maintainer: Your Name <you@example.com>
+Description: JSON tree viewer with tabs
+ Open JSON files as a collapsible tree in Notepad++-style tabs.
+ Dark interface, search, copy JSON path. Offline, built on Tkinter.
+EOF
+
+# 5) maintainer scripts: byte-compile on install, clean on removal
+cat > "$PKG/DEBIAN/postinst" <<'EOF'
+#!/bin/sh
+set -e
+python3 -m compileall -q /usr/lib/json-tree-viewer >/dev/null 2>&1 || true
+exit 0
+EOF
+cat > "$PKG/DEBIAN/prerm" <<'EOF'
+#!/bin/sh
+set -e
+rm -rf /usr/lib/json-tree-viewer/__pycache__
+exit 0
+EOF
+chmod 755 "$PKG/DEBIAN/postinst" "$PKG/DEBIAN/prerm"
+
+# 6) build the .deb
+dpkg-deb --build --root-owner-group "$PKG"
+echo
+echo "Built: $PKG.deb"
+# ---- end build_deb.sh ----
+ ------------------------------------------------------------------------------
+
+ 1.3  Build it
+ ------------------------------------------------------------------------------
+   chmod +x build_deb.sh
+   ./build_deb.sh
+   # -> build/json-tree-viewer_1.0.0_all.deb
+
+ 1.4  Install as a system package
+ ------------------------------------------------------------------------------
+   sudo apt install ./build/json-tree-viewer_1.0.0_all.deb
+
+   (apt resolves python3-tk automatically. "sudo dpkg -i" also works but does
+    not fetch missing dependencies.)
+
+ 1.5  Use it
+ ------------------------------------------------------------------------------
+   json-tree-viewer                 # from any terminal
+   json-tree-viewer data.json       # open a file directly
+   Or find "JSON Tree Viewer" in the application menu, or right-click a .json
+   file -> Open With -> JSON Tree Viewer.
+
+ 1.6  Inspect, update, remove
+ ------------------------------------------------------------------------------
+   dpkg -L json-tree-viewer               # list installed files
+   dpkg -I build/json-tree-viewer_*.deb   # show package metadata
+   # Update: bump VERSION in build_deb.sh, rebuild, then apt install the new .deb
+   sudo apt remove json-tree-viewer       # uninstall
+   rm -rf ~/.config/JsonTreeViewer        # (optional) delete your saved setting
+
+ Optional: add an icon. Put a 256x256 PNG at
+   usr/share/icons/hicolor/256x256/apps/json-tree-viewer.png   (inside $PKG)
+ and change Icon=application-json to Icon=json-tree-viewer in the .desktop file.
+
+ Other distros: Fedora/RHEL  -> sudo dnf install python3-tkinter
+                Arch/Manjaro -> sudo pacman -S tk
+                (then just run python3 main.py, or build a package with fpm.)
+
+
+==============================================================================
+ 2. LINUX - (OPTIONAL) STANDALONE BINARY INSIDE A .DEB
+==============================================================================
+ Use this if you want a package that does not depend on the system Python.
+ Build on the OLDEST distro you want to support (glibc compatibility), and on
+ the same CPU architecture you target.
+
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements-linux.txt
+   pyinstaller --noconsole --onedir --name json-tree-viewer main.py
+   # -> dist/json-tree-viewer/   (folder with the executable and its libs)
+
+ Then adapt build_deb.sh:
+   - ARCH=amd64                      (or arm64)
+   - install the folder instead of the .py files:
+       mkdir -p "$PKG/opt"
+       cp -r "$SRC/dist/json-tree-viewer" "$PKG/opt/json-tree-viewer"
+   - launcher becomes a symlink:
+       ln -s /opt/json-tree-viewer/json-tree-viewer "$PKG/usr/bin/json-tree-viewer"
+   - delete the "Depends:" line, and delete the postinst/prerm scripts
+   - keep the .desktop file as is.
+
+
+==============================================================================
+ 3. WINDOWS - BUILD JsonTreeViewer.exe
+==============================================================================
+ 3.1  Install Python 3.9+ from https://www.python.org/downloads/
+      Tick "Add python.exe to PATH" and keep "tcl/tk and IDLE" ticked.
+
+ 3.2  Open PowerShell or CMD in the project folder
+ ------------------------------------------------------------------------------
+   py -3 -m venv .venv
+   .venv\Scripts\activate
+   pip install -r requirements-windows.txt
+
+ 3.3  Build the executable
+ ------------------------------------------------------------------------------
+   pyinstaller --noconsole --onefile --name JsonTreeViewer main.py
+
+   Result: dist\JsonTreeViewer.exe  (double-click to run; copy it anywhere)
+
+   Options:
+     --icon assets\icon.ico              add an app icon (.ico file)
+     --add-data "assets;assets"          bundle a resources folder
+                                         (Windows uses ";", Linux uses ":")
+     --onedir instead of --onefile       faster start-up; output is the folder
+                                         dist\JsonTreeViewer\ (see 4.2)
+
+   Paths keep working inside the .exe: the app reads bundled files through
+   paths.resource_path() and stores settings in %APPDATA%\JsonTreeViewer\.
+
+ 3.4  Test
+ ------------------------------------------------------------------------------
+   dist\JsonTreeViewer.exe
+   dist\JsonTreeViewer.exe C:\path\to\file.json
+
+
+==============================================================================
+ 4. WINDOWS - INSTALL IT LIKE A NORMAL WINDOWS APP
+==============================================================================
+ Goal: JsonTreeViewer-Setup.exe that installs to Program Files (or per-user),
+ adds a Start Menu entry, an optional desktop shortcut, an uninstaller in
+ "Apps & features", and an optional right-click "Open with JSON Tree Viewer"
+ entry for .json files.
+
+ 4.1  Install Inno Setup 6.3 or newer (free)
+ ------------------------------------------------------------------------------
+   winget install JRSoftware.InnoSetup
+   (or download from https://jrsoftware.org/isinfo.php)
+
+ 4.2  Save this as installer.iss in the project folder
+ ------------------------------------------------------------------------------
+[Setup]
+AppId={{8F3C2A51-6B1D-4E7A-9C44-2D5A7E1B3F90}
+AppName=JSON Tree Viewer
+AppVersion=1.0.0
+AppPublisher=Your Name
+DefaultDirName={autopf}\JSON Tree Viewer
+DefaultGroupName=JSON Tree Viewer
+DisableProgramGroupPage=yes
+OutputDir=Output
+OutputBaseFilename=JsonTreeViewer-Setup
+Compression=lzma2
+SolidCompression=yes
+WizardStyle=modern
+PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=dialog
+ArchitecturesInstallIn64BitMode=x64compatible
+UninstallDisplayIcon={app}\JsonTreeViewer.exe
+
+[Tasks]
+Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional icons:"; Flags: unchecked
+Name: "contextmenu"; Description: "Add ""Open with JSON Tree Viewer"" to the .json right-click menu"; GroupDescription: "Integration:"
+
+[Files]
+Source: "dist\JsonTreeViewer.exe"; DestDir: "{app}"; Flags: ignoreversion
+; If you built with --onedir, use this line instead of the one above:
+; Source: "dist\JsonTreeViewer\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[Icons]
+Name: "{autoprograms}\JSON Tree Viewer"; Filename: "{app}\JsonTreeViewer.exe"
+Name: "{autodesktop}\JSON Tree Viewer"; Filename: "{app}\JsonTreeViewer.exe"; Tasks: desktopicon
+
+[Registry]
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.json\shell\JsonTreeViewer"; ValueType: string; ValueName: ""; ValueData: "Open with JSON Tree Viewer"; Tasks: contextmenu; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.json\shell\JsonTreeViewer\command"; ValueType: string; ValueName: ""; ValueData: """{app}\JsonTreeViewer.exe"" ""%1"""; Tasks: contextmenu
+
+[Run]
+Filename: "{app}\JsonTreeViewer.exe"; Description: "Launch JSON Tree Viewer"; Flags: nowait postinstall skipifsilent
+ ------------------------------------------------------------------------------
+
+ 4.3  Build the installer (after step 3.3 produced dist\JsonTreeViewer.exe)
+ ------------------------------------------------------------------------------
+   "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" installer.iss
+   (or open installer.iss in the Inno Setup Compiler and press F9)
+
+   Result: Output\JsonTreeViewer-Setup.exe
+
+ 4.4  Install and uninstall
+ ------------------------------------------------------------------------------
+   Double-click JsonTreeViewer-Setup.exe. The dialog lets you choose
+   "only for me" (no admin rights) or "for all users".
+   Start it from the Start Menu: "JSON Tree Viewer".
+   Uninstall: Settings -> Apps -> Installed apps -> JSON Tree Viewer, or the
+   uninstaller in the install folder. Saved settings stay in
+   %APPDATA%\JsonTreeViewer (delete that folder to remove them).
+
+ No installer wanted? Copy JsonTreeViewer.exe to any folder, right-click ->
+ Show more options -> Create shortcut, then move the shortcut into
+ shell:programs (Win+R) to get a Start Menu entry.
+
+ Unsigned executables can trigger a SmartScreen or antivirus warning. To avoid
+ it, sign both the .exe and the installer with your own code-signing
+ certificate (signtool), or build locally from source.
+
+
+==============================================================================
+ 5. TROUBLESHOOTING
+==============================================================================
+ "No module named tkinter" (Linux)
+     Debian/Ubuntu: sudo apt install python3-tk
+     Fedora:        sudo dnf install python3-tkinter
+     Arch:          sudo pacman -S tk
+
+ "No module named tkinter" (Windows)
+     Re-run the Python installer -> Modify -> tick "tcl/tk and IDLE".
+
+ Window opens blurry or too small on Windows
+     The app enables DPI awareness itself. If you launch it through another
+     tool that changes DPI settings, run the .exe directly.
+
+ --onefile .exe starts slowly
+     It unpacks to a temp folder on every launch. Use --onedir plus the
+     installer in section 4 for faster start-up.
+
+ PyInstaller antivirus false positive
+     Common with unsigned one-file builds. Prefer --onedir, sign the build,
+     or run from source.
+
+ Where are the settings?
+     Windows: %APPDATA%\JsonTreeViewer\settings.json
+     Linux:   ~/.config/JsonTreeViewer/settings.json
+==============================================================================

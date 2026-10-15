@@ -1,0 +1,16 @@
+# JSON Tree Viewer — Windows requirements
+#
+# RUNTIME: no third-party packages are needed.
+#          Tkinter ships with the official python.org installer for Windows
+#          (keep "tcl/tk and IDLE" ticked when installing Python 3.9+).
+#
+# BUILD-TIME ONLY (to create JsonTreeViewer.exe):
+#   py -3 -m venv .venv
+#   .venv\Scripts\activate
+#   pip install -r requirements-windows.txt
+
+pyinstaller>=6.0
+
+# Optional: lets PyInstaller convert a .png into an .ico for --icon.
+# Not needed if you already have an assets\icon.ico file.
+# pillow>=10.0
