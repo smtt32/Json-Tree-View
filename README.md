@@ -203,18 +203,6 @@ Issues and pull requests are welcome. Ideas that would fit well: drag-and-drop t
 
 ## 📄 License
 
-Released under the **MIT License**. Add a `LICENSE` file with your name before publishing.
+Released under the **Apache 2.0 License**. Add a `LICENSE` file with your name before publishing.
 
----
 
-<details>
-<summary><b>🇹🇷 Türkçe özet</b></summary>
-
-**JSON Tree Viewer**, JSON dosyalarını açılıp kapanabilir **ağaç görünümünde** inceleyen, ücretsiz ve tamamen **çevrimdışı** çalışan bir **JSON görüntüleyici**dir. Windows ve Linux'ta çalışır, Notepad++ tarzı sekmeleri, arama, **JSON yolu kopyalama** ve modern koyu arayüzü vardır.
-
-- Çalıştırma: `python main.py` (Python 3.9+, Tkinter)
-- Windows `.exe` ve kurulum paketi, Linux `.deb` paketi: [`SETUP.txt`](SETUP.txt)
-- Verileriniz bilgisayarınızdan çıkmaz.
-</details>
-
-<sub>Related searches: JSON viewer · JSON tree viewer · JSON explorer · open JSON file · offline JSON viewer · desktop JSON viewer · JSON path copy · dark mode JSON viewer · JSON viewer for Windows · JSON viewer for Linux · Python Tkinter app</sub>
